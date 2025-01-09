@@ -148,24 +148,32 @@ int main(int argc, char** argv)
         const point_t v1 = *vv[0][0]; // first Voronoi vertex
         point_t v2; // second Voronoi vertex
         if (!vv[1][0]) { // if no Voronoi vertex across the edge, use edge center
-            const auto [ xa, ya ] = points[edge.a];
-            const auto [ xb, yb ] = points[edge.b];
+            const auto [ x1, y1 ] = points[edge.a];
+            const auto [ x2, y2 ] = points[edge.b];
 
-            /*
+            // cerr << '[' << xa << ", " << ya << "]\n";
+            // cerr << '[' << xb << ", " << yb << "]\n";
+            // cerr << '[' << v1[0] << ", " << v1[0] << "]\n";
+
             // ax + by + c = 0
-            const double a = ya - yb;
-            const double b = xb - xa;
-            const double c = xa*yb - ya*xb;
+            const double a = y1 - y2;
+            const double b = x2 - x1;
+            const double c = x1*y2 - y1*x2;
 
-            const point_t v3 = *vv[0][1]; // the other triangle vertex
+            // cerr << '(' << a << ")x + (" << b << ")y + (" << c << ")\n";
 
-            // if on opposite sides of the triangle edge
-            if ( ( a*v2[0] + b*v2[1] + c < 0 )
-              != ( a*v3[0] + b*v3[1] + c < 0 )
+            const point_t t3 = *vv[0][1]; // the other vertex of the triangle
+
+            // cerr << ( a*v1[0] + b*v1[1] + c < 0 ) << '\n';
+            // cerr << ( a*t3[0] + b*t3[1] + c < 0 ) << '\n';
+
+            // if the single voronoi vertex is on the oposite side
+            // from the third triangle vertex
+            if ( ( a*v1[0] + b*v1[1] + c < 0 )
+              != ( a*t3[0] + b*t3[1] + c < 0 )
             ) continue;
-            */
 
-            v2 = { (xa + xb) * 0.5, (ya + yb) * 0.5 };
+            v2 = { (x1 + x2) * 0.5, (y1 + y2) * 0.5 };
         } else {
           v2 = *vv[1][0];
         }
