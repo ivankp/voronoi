@@ -14,7 +14,20 @@ enum {
     READ_TRIANGLES
 } read_section = READ_NULL;
 
-auto sq(auto x) { return x*x; }
+template <typename T>
+struct ordered_pair {
+    T a, b;
+    ordered_pair(T _a, T _b) {
+        if (_a < _b) {
+            a = _a;
+            b = _b;
+        } else {
+            a = _b;
+            b = _a;
+        }
+    }
+    auto operator<=>(const ordered_pair&) const = default;
+};
 
 int main(int argc, char** argv)
 {
@@ -65,21 +78,12 @@ int main(int argc, char** argv)
         }
     }
 
-    struct edge {
-        unsigned a, b;
-        edge(unsigned _a, unsigned _b) {
-            if (_a < _b) {
-                a = _a;
-                b = _b;
-            } else {
-                a = _b;
-                b = _a;
-            }
-        }
-        auto operator<=>(const edge&) const = default;
-    };
     // Voronoi diagram edges
-    std::map<edge, std::array<std::array<const point_t*, 2>, 2>> edges;
+    std::map<
+      ordered_pair<unsigned>, // triangle edge: indices of triangle vertices
+      std::array<std::array<const point_t*, 2>, 2> // voronoi vertices:
+      // (pointer to voronoi vertex, corresponding third triangle vertex) × 2
+    > edges;
 
     // Centers of circumscribed circles of triangles
     std::vector<point_t> vertices(triangles.size());
@@ -141,12 +145,11 @@ int main(int argc, char** argv)
     cout << "\n],\n\"edges\":[\n";
     first = true;
     for (auto& [ edge, vv ] : edges) {
-        const point_t v1 = *vv[0][0];
-        point_t v2;
+        const point_t v1 = *vv[0][0]; // first Voronoi vertex
+        point_t v2; // second Voronoi vertex
         if (!vv[1][0]) { // if no Voronoi vertex across the edge, use edge center
             const auto [ xa, ya ] = points[edge.a];
             const auto [ xb, yb ] = points[edge.b];
-            v2 = { (xa + xb) * 0.5, (ya + yb) * 0.5 };
 
             /*
             // ax + by + c = 0
@@ -161,9 +164,12 @@ int main(int argc, char** argv)
               != ( a*v3[0] + b*v3[1] + c < 0 )
             ) continue;
             */
+
+            v2 = { (xa + xb) * 0.5, (ya + yb) * 0.5 };
         } else {
           v2 = *vv[1][0];
         }
+
         if (first) {
             first = false;
         } else {
