@@ -11,8 +11,7 @@ using std::cout, std::cerr, std::endl;
 enum {
     READ_NULL,
     READ_POINTS,
-    READ_TRIANGLES,
-    READ_NEIGHBORS
+    READ_TRIANGLES
 } read_section = READ_NULL;
 
 auto sq(auto x) { return x*x; }
@@ -26,8 +25,7 @@ int main(int argc, char** argv)
 
     using point_t = std::array<double, 2>;
     std::vector<point_t> points;
-    std::vector<std::array<int, 3>> triangles;
-    std::vector<std::array<int, 3>> neighbors;
+    std::vector<std::array<unsigned, 3>> triangles;
 
     {
         std::ifstream file(argv[1]);
@@ -44,10 +42,8 @@ int main(int argc, char** argv)
                     read_section = READ_POINTS;
                 } else if (line == "# Triangles") {
                     read_section = READ_TRIANGLES;
-                } else if (line == "# Neighbors") {
-                    read_section = READ_NEIGHBORS;
                 } else {
-                    cerr << "Unexpected section title: " << line << '\n';
+                    cerr << "Unexpected section label: " << line << '\n';
                     return 1;
                 }
                 continue;
@@ -62,20 +58,16 @@ int main(int argc, char** argv)
                     for (auto& val : triangles.emplace_back())
                         ss >> val;
                     break;
-                case READ_NEIGHBORS:
-                    for (auto& val : neighbors.emplace_back())
-                        ss >> val;
-                    break;
                 default:
-                    cerr << "Missing section title\n";
+                    cerr << "Missing section label\n";
                     return 1;
             }
         }
     }
 
     struct edge {
-        int a, b;
-        edge(int _a, int _b) {
+        unsigned a, b;
+        edge(unsigned _a, unsigned _b) {
             if (_a < _b) {
                 a = _a;
                 b = _b;
@@ -90,27 +82,21 @@ int main(int argc, char** argv)
     std::map<edge, std::array<const point_t*, 2>> edges;
 
     // Centers of circumscribed circles of triangles
-    std::vector<point_t> vertices(triangles.size());
+    std::vector<point_t> vertices(triangles.size()); /////// <<<<<<<
     // TODO: reserve correct number of additional vertices
     vertices.reserve(triangles.size() * 2);
     // TODO: currently, vertices must not reallocate
 
+    cout << "{\n\"vertices\":[\n";
+    bool first = true;
+
     for (size_t t = 0; t < triangles.size(); ++t) {
         auto [ i, j, k ] = triangles[t]; // triangle vertices
         double d = 0, py = 1, cx = 0, cy = 0;
-        for (int l = 3;;) {
+        for (unsigned permutation = 3;;) {
             const auto [ xi, yi ] = points[i];
             const auto [ xj, yj ] = points[j];
             const auto [ xk, yk ] = points[k];
-
-            /*
-            if (l == 0) {
-                cout << "{"
-                    "{" << xi << "," << yi << "},"
-                    "{" << xj << "," << yj << "},"
-                    "{" << xk << "," << yk << "}}\n";
-            }
-            */
 
             const double dy = yi - yj;
             const double dl = dy * xk;
@@ -120,7 +106,7 @@ int main(int argc, char** argv)
             cx += dl * xk;
             cy += (yi*yi + xi*xi) * (xk - xj);
 
-            if (!--l)
+            if (!--permutation)
                 break;
 
             const auto tmp = i;
@@ -133,14 +119,19 @@ int main(int argc, char** argv)
         cx /= d;
         cy /= d;
 
-        cout << '[' << cx << ',' << cy << "],\n";
+        if (first) {
+            first = false;
+        } else {
+            cout << ",\n";
+        }
+        cout << '[' << cx << ',' << cy << ']';
         const point_t& p = vertices[t] = { cx, cy };
 
-        for (int l = 3;;) {
+        for (unsigned permutation = 3;;) {
             auto& vv = edges[{ i, j }]; // Voronoi vertex
             vv[!!vv[0]] = &p;
 
-            if (!--l)
+            if (!--permutation)
                 break;
 
             const auto tmp = i;
@@ -150,8 +141,8 @@ int main(int argc, char** argv)
         }
     }
 
-    cout << "[\n";
-    bool first = true;
+    cout << "\n],\n\"edges\":[\n";
+    first = true;
     for (auto& [ edge, vv ] : edges) {
         if (!vv[1]) { // if no Voronoi vertex across the edge, use edge center
             const auto [ xa, ya ] = points[edge.a];
@@ -169,5 +160,5 @@ int main(int argc, char** argv)
             "[" << a[0] << ',' << a[1] << "],"
             "[" << b[0] << ',' << b[1] << "]]";
     }
-    cout << "\n]\n";
+    cout << "\n]\n}\n";
 }
