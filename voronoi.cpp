@@ -79,13 +79,10 @@ int main(int argc, char** argv)
         auto operator<=>(const edge&) const = default;
     };
     // Voronoi diagram edges
-    std::map<edge, std::array<const point_t*, 2>> edges;
+    std::map<edge, std::array<std::array<const point_t*, 2>, 2>> edges;
 
     // Centers of circumscribed circles of triangles
-    std::vector<point_t> vertices(triangles.size()); /////// <<<<<<<
-    // TODO: reserve correct number of additional vertices
-    vertices.reserve(triangles.size() * 2);
-    // TODO: currently, vertices must not reallocate
+    std::vector<point_t> vertices(triangles.size());
 
     cout << "{\n\"vertices\":[\n";
     bool first = true;
@@ -128,8 +125,8 @@ int main(int argc, char** argv)
         const point_t& p = vertices[t] = { cx, cy };
 
         for (unsigned permutation = 3;;) {
-            auto& vv = edges[{ i, j }]; // Voronoi vertex
-            vv[!!vv[0]] = &p;
+            auto& vv = edges[{ i, j }]; // edges: triangle edge -> Voronoi edge
+            vv[!!vv[0][0]] = { &p, &points[k] };
 
             if (!--permutation)
                 break;
@@ -144,21 +141,37 @@ int main(int argc, char** argv)
     cout << "\n],\n\"edges\":[\n";
     first = true;
     for (auto& [ edge, vv ] : edges) {
-        if (!vv[1]) { // if no Voronoi vertex across the edge, use edge center
+        const point_t v1 = *vv[0][0];
+        point_t v2;
+        if (!vv[1][0]) { // if no Voronoi vertex across the edge, use edge center
             const auto [ xa, ya ] = points[edge.a];
             const auto [ xb, yb ] = points[edge.b];
-            vv[1] = &(vertices.emplace_back() = { (xa + xb) * 0.5, (ya + yb) * 0.5 });
+            v2 = { (xa + xb) * 0.5, (ya + yb) * 0.5 };
+
+            /*
+            // ax + by + c = 0
+            const double a = ya - yb;
+            const double b = xb - xa;
+            const double c = xa*yb - ya*xb;
+
+            const point_t v3 = *vv[0][1]; // the other triangle vertex
+
+            // if on opposite sides of the triangle edge
+            if ( ( a*v2[0] + b*v2[1] + c < 0 )
+              != ( a*v3[0] + b*v3[1] + c < 0 )
+            ) continue;
+            */
+        } else {
+          v2 = *vv[1][0];
         }
-        const auto& a = *vv[0];
-        const auto& b = *vv[1];
         if (first) {
             first = false;
         } else {
             cout << ",\n";
         }
         cout << "["
-            "[" << a[0] << ',' << a[1] << "],"
-            "[" << b[0] << ',' << b[1] << "]]";
+            "[" << v1[0] << ',' << v1[1] << "],"
+            "[" << v2[0] << ',' << v2[1] << "]]";
     }
     cout << "\n]\n}\n";
 }
