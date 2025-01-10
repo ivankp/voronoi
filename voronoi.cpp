@@ -17,11 +17,13 @@ enum {
 template <typename T>
 struct ordered_pair: std::array<T, 2> {
     using base_t = std::array<T, 2>;
+    base_t& operator+() noexcept { return *this; }
+    const base_t& operator+() const noexcept { return *this; }
     ordered_pair(T a, T b) {
         if (a < b) {
-            static_cast<base_t&>(*this) = { a, b };
+            +*this = { a, b };
         } else {
-            static_cast<base_t&>(*this) = { b, a };
+            +*this = { b, a };
         }
     }
 };
@@ -134,6 +136,7 @@ int main(int argc, char** argv)
             } else {
               vv[1] = t;
             }
+            // TODO: need to check for exact overlap of Voronoi vertices: if (vv[1] > 0) (0 could mean unassigned)
 
             if (!--permutation)
                 break;
@@ -145,35 +148,82 @@ int main(int argc, char** argv)
         }
     }
 
-    cout << "\n],\n\"edges\":[\n";
-    first = true;
-    for (auto& [ edge, vv ] : edges) {
-        const point_t v1 = vertices[vv[0]]; // first Voronoi vertex
-        point_t v2; // second Voronoi vertex
-        if (vv[1] < 0) { // if no Voronoi vertex across the edge, use edge center
-            const auto [ x1, y1 ] = points[edge[0]];
-            const auto [ x2, y2 ] = points[edge[1]];
+    // std::vector<int> outside;
+    std::vector<typename decltype(edges)::const_iterator> outside;
 
-            // ax + by + c = 0
-            const double a = y1 - y2;
-            const double b = x2 - x1;
-            const double c = y1*x2 - x1*y2 ;
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+        auto& [ triangle_vertices, voronoi_vertices ] = *it;
+        auto [ v1, v2 ] = voronoi_vertices;
+        if (v2 < 0) { // if no Voronoi vertex across the edge, use edge center
+            const auto [ t1, t2 ] = +triangle_vertices;
+            const auto [ tx1, ty1 ] = points[t1];
+            const auto [ tx2, ty2 ] = points[t2];
 
-            const point_t t3 = points[-(vv[1]+1)]; // the other vertex of the triangle
+            // dy * x - dx * y + xy = 0
+            const double tdx = tx1 - tx2;
+            const double tdy = ty1 - ty2;
+            const double txy = tx1 * ty2 - ty1 * tx2;
 
-            if ( ( a*v1[0] + b*v1[1] < c )
-              == ( a*t3[0] + b*t3[1] < c )
+            const auto [ tx3, ty3 ] = points[-(v2+1)]; // the other vertex of the triangle
+            const auto [ vx1, vy1 ] = vertices[v1];
+
+            if ( ( tdx * vy1 - tdy * vx1 < txy )
+              == ( tdx * ty3 - tdy * tx3 < txy )
             ) {
               // if the single voronoi vertex is on the same side
               // from the third triangle vertex,
               // use the edge center as the missing vertex
-              v2 = { (x1 + x2) * 0.5, (y1 + y2) * 0.5 };
+              vertices.push_back({ (tx1 + tx2) * 0.5, (ty1 + ty2) * 0.5 });
+              voronoi_vertices[1] = vertices.size() - 1;
             } else {
+              // if the voronoi vertex is on the oposite size,
+              // truncate at the edge
+              outside.push_back(it);
+
+              for (auto it = edges.begin(); it != edges.end(); ++it) {
+                auto [ a, b ] = it->second;
+                if (b < 0) {
+                  continue;
+                } else if (b == v1) {
+                  v2 = a;
+                } else if (a == v1) {
+                  v2 = b;
+                } else {
+                  continue;
+                }
+
+                const auto [ vx2, vy2 ] = vertices[v2];
+
+                cerr
+                  << "[" << vx1 << ", " << vy1 << "], "
+                  << "[" << vx2 << ", " << vy2 << "], ";
+
+                const double vdx = vx1 - vx2;
+                const double vdy = vy1 - vy2;
+                const double vxy = vx1 * vy2 - vy1 * vx2;
+
+                const double d = tdx * vdy - vdx * tdy;
+
+                const double x = (txy * vdx - vxy * tdx) / d;
+                const double y = (txy * vdy - vxy * tdy) / d;
+
+                cerr << "[" << x << ", " << y << "]\n";
+              }
+              cerr << '\n';
+
               continue;
             }
-        } else {
-          v2 = vertices[vv[1]];
         }
+    }
+
+    cout << "\n],\n\"edges\":[\n";
+    first = true;
+    for (auto& [ tt, vv ] : edges) {
+        const point_t v1 = vertices[vv[0]]; // first  Voronoi vertex
+
+        if (vv[1] < 0)
+            continue;
+        const point_t v2 = vertices[vv[1]]; // second Voronoi vertex
 
         if (first) {
             first = false;
