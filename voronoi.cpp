@@ -29,6 +29,14 @@ struct ordered_pair {
     auto operator<=>(const ordered_pair&) const = default;
 };
 
+struct index {
+  unsigned i = -1;
+  constexpr index() noexcept = default;
+  constexpr index(unsigned i) noexcept: i(i) { }
+  constexpr operator unsigned() const noexcept { return i; }
+  constexpr bool empty() const noexcept { return i == unsigned(-1); }
+};
+
 int main(int argc, char** argv)
 {
     if (argc != 2) {
@@ -81,11 +89,11 @@ int main(int argc, char** argv)
     // Voronoi diagram edges
     std::map<
       ordered_pair<unsigned>, // triangle edge: indices of triangle vertices
-      std::array<std::array<const point_t*, 2>, 2> // voronoi vertices:
-      // (pointer to voronoi vertex, corresponding third triangle vertex) × 2
+      std::array<std::array<index, 2>, 2> // voronoi vertices:
+      // (index of voronoi vertex, corresponding third triangle vertex) × 2
     > edges;
 
-    // Centers of circumscribed circles of triangles
+    // Voronoi vertices: centers of circumscribed circles of triangles
     std::vector<point_t> vertices(triangles.size());
 
     cout << "{\n\"vertices\":[\n";
@@ -126,11 +134,11 @@ int main(int argc, char** argv)
             cout << ",\n";
         }
         cout << '[' << cx << ',' << cy << ']';
-        const point_t& p = vertices[t] = { cx, cy };
+        vertices[t] = { cx, cy };
 
         for (unsigned permutation = 3;;) {
             auto& vv = edges[{ i, j }]; // edges: triangle edge -> Voronoi edge
-            vv[!!vv[0][0]] = { &p, &points[k] };
+            vv[!vv[0][0].empty()] = { t, k };
 
             if (!--permutation)
                 break;
@@ -145,27 +153,18 @@ int main(int argc, char** argv)
     cout << "\n],\n\"edges\":[\n";
     first = true;
     for (auto& [ edge, vv ] : edges) {
-        const point_t v1 = *vv[0][0]; // first Voronoi vertex
+        const point_t v1 = vertices[vv[0][0]]; // first Voronoi vertex
         point_t v2; // second Voronoi vertex
-        if (!vv[1][0]) { // if no Voronoi vertex across the edge, use edge center
+        if (vv[1][0].empty()) { // if no Voronoi vertex across the edge, use edge center
             const auto [ x1, y1 ] = points[edge.a];
             const auto [ x2, y2 ] = points[edge.b];
-
-            // cerr << '[' << xa << ", " << ya << "]\n";
-            // cerr << '[' << xb << ", " << yb << "]\n";
-            // cerr << '[' << v1[0] << ", " << v1[0] << "]\n";
 
             // ax + by + c = 0
             const double a = y1 - y2;
             const double b = x2 - x1;
             const double c = x1*y2 - y1*x2;
 
-            // cerr << '(' << a << ")x + (" << b << ")y + (" << c << ")\n";
-
-            const point_t t3 = *vv[0][1]; // the other vertex of the triangle
-
-            // cerr << ( a*v1[0] + b*v1[1] + c < 0 ) << '\n';
-            // cerr << ( a*t3[0] + b*t3[1] + c < 0 ) << '\n';
+            const point_t t3 = points[vv[0][1]]; // the other vertex of the triangle
 
             // if the single voronoi vertex is on the oposite side
             // from the third triangle vertex
@@ -175,7 +174,7 @@ int main(int argc, char** argv)
 
             v2 = { (x1 + x2) * 0.5, (y1 + y2) * 0.5 };
         } else {
-          v2 = *vv[1][0];
+          v2 = vertices[vv[1][0]];
         }
 
         if (first) {
