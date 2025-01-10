@@ -2,6 +2,7 @@
 #include <vector>
 #include <array>
 #include <map>
+#include <set>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -92,9 +93,6 @@ int main(int argc, char** argv)
     // Voronoi vertices: centers of circumscribed circles of triangles
     std::vector<point_t> vertices(triangles.size());
 
-    cout << "{\n\"vertices\":[\n";
-    bool first = true;
-
     for (int t = 0, nt = triangles.size(); t < nt; ++t) {
         auto [ i, j, k ] = triangles[t]; // triangle vertices
         double d = 0, py = 1, cx = 0, cy = 0;
@@ -124,12 +122,6 @@ int main(int argc, char** argv)
         cx /= d;
         cy /= d;
 
-        if (first) {
-            first = false;
-        } else {
-            cout << ",\n";
-        }
-        cout << '[' << cx << ',' << cy << ']';
         vertices[t] = { cx, cy };
 
         for (int permutation = 3;;) {
@@ -153,7 +145,8 @@ int main(int argc, char** argv)
         }
     }
 
-    std::vector<typename decltype(edges)::const_iterator> remove;
+    std::set<int> remove_vertices;
+    std::vector<typename decltype(edges)::const_iterator> remove_edges;
     decltype(edges) edges2;
 
     for (auto it = edges.begin(); it != edges.end(); ) {
@@ -222,9 +215,12 @@ int main(int argc, char** argv)
 
                 cerr << "[" << x << ", " << y << "]\n";
 
-                remove.push_back(it);
+                remove_edges.push_back(it);
               }
               cerr << '\n';
+
+              // TODO: remove v1 here
+              remove_vertices.insert(v1);
 
               continue;
             }
@@ -233,15 +229,29 @@ int main(int argc, char** argv)
     }
 
     {
-        std::ranges::sort(remove, {},
+        std::ranges::sort(remove_edges, {},
             [](const auto& it) -> const auto& { return it->first; }
         );
-        const auto [first, last] = std::ranges::unique(remove);
-        remove.erase(first, last);
-        for (auto it : remove) {
+        const auto [first, last] = std::ranges::unique(remove_edges);
+        remove_edges.erase(first, last);
+        for (auto it : remove_edges) {
           edges.erase(it);
         }
         edges.merge(std::move(edges2));
+    }
+
+    cout << "{\n\"vertices\":[\n";
+    bool first = true;
+    for (size_t i = 0; i < triangles.size(); ++i) {
+        if (remove_vertices.contains(i))
+          continue;
+        if (first) {
+            first = false;
+        } else {
+            cout << ",\n";
+        }
+        auto [ x, y ] = vertices[i];
+        cout << '[' << x << ',' << y << ']';
     }
 
     cout << "\n],\n\"edges\":[\n";
