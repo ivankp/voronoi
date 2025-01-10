@@ -4,6 +4,7 @@
 #include <map>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 #include <iostream>
 
 using std::cout, std::cerr, std::endl;
@@ -27,6 +28,11 @@ struct ordered_pair: std::array<T, 2> {
         }
     }
 };
+
+template <typename... T>
+constexpr auto sq(T... x) noexcept
+requires (std::is_arithmetic_v<T> && ...)
+{ return ((x * x) + ...); }
 
 int main(int argc, char** argv)
 {
@@ -80,8 +86,7 @@ int main(int argc, char** argv)
     // Voronoi diagram edges
     std::map<
       ordered_pair<int>, // triangle edge: indices of triangle vertices
-      std::array<int, 2> // voronoi vertices:
-      // (index of voronoi vertex, corresponding third triangle vertex) × 2
+      std::array<int, 2> // voronoi vertices
     > edges;
 
     // Voronoi vertices: centers of circumscribed circles of triangles
@@ -148,10 +153,10 @@ int main(int argc, char** argv)
         }
     }
 
-    // std::vector<int> outside;
-    std::vector<typename decltype(edges)::const_iterator> outside;
+    std::vector<typename decltype(edges)::const_iterator> remove;
+    decltype(edges) edges2;
 
-    for (auto it = edges.begin(); it != edges.end(); ++it) {
+    for (auto it = edges.begin(); it != edges.end(); ) {
         auto& [ triangle_vertices, voronoi_vertices ] = *it;
         auto [ v1, v2 ] = voronoi_vertices;
         if (v2 < 0) { // if no Voronoi vertex across the edge, use edge center
@@ -174,12 +179,13 @@ int main(int argc, char** argv)
               // from the third triangle vertex,
               // use the edge center as the missing vertex
               vertices.push_back({ (tx1 + tx2) * 0.5, (ty1 + ty2) * 0.5 });
-              voronoi_vertices[1] = vertices.size() - 1;
+              voronoi_vertices[1] = int(vertices.size() - 1);
             } else {
-              // if the voronoi vertex is on the oposite size,
+              // if the voronoi vertex is on the opposite side,
               // truncate at the edge
-              outside.push_back(it);
+              it = edges.erase(it);
 
+              int t = -1;
               for (auto it = edges.begin(); it != edges.end(); ++it) {
                 auto [ a, b ] = it->second;
                 if (b < 0) {
@@ -207,13 +213,35 @@ int main(int argc, char** argv)
                 const double x = (txy * vdx - vxy * tdx) / d;
                 const double y = (txy * vdy - vxy * tdy) / d;
 
+                t = t < 0
+                  ? ( sq(tx1 - x, ty1 - y) < sq(tx2 - x, ty2 - y) ) ? t1 : t2
+                  : t == t2 ? t1 : t2;
+
+                vertices.push_back({ x, y });
+                edges2[{ -1, t }] = { v2, int(vertices.size() - 1) };
+
                 cerr << "[" << x << ", " << y << "]\n";
+
+                remove.push_back(it);
               }
               cerr << '\n';
 
               continue;
             }
         }
+        ++it;
+    }
+
+    {
+        std::ranges::sort(remove, {},
+            [](const auto& it) -> const auto& { return it->first; }
+        );
+        const auto [first, last] = std::ranges::unique(remove);
+        remove.erase(first, last);
+        for (auto it : remove) {
+          edges.erase(it);
+        }
+        edges.merge(std::move(edges2));
     }
 
     cout << "\n],\n\"edges\":[\n";
@@ -221,8 +249,8 @@ int main(int argc, char** argv)
     for (auto& [ tt, vv ] : edges) {
         const point_t v1 = vertices[vv[0]]; // first  Voronoi vertex
 
-        if (vv[1] < 0)
-            continue;
+        // if (vv[1] < 0)
+        //     continue;
         const point_t v2 = vertices[vv[1]]; // second Voronoi vertex
 
         if (first) {
