@@ -89,6 +89,7 @@ int main(int argc, char** argv)
       ordered_pair<int>, // triangle edge: indices of triangle vertices
       std::array<int, 2> // voronoi vertices
     > edges;
+    // TODO: is there a more efficient way to map triangle and Voronoi edges?
 
     // Voronoi vertices: centers of circumscribed circles of triangles
     std::vector<point_t> vertices(triangles.size());
@@ -125,13 +126,14 @@ int main(int argc, char** argv)
         vertices[t] = { cx, cy };
 
         for (int permutation = 3;;) {
-            auto& vv = edges[{ i, j }]; // edges: triangle edge -> Voronoi edge
-            if (vv[1] == 0) {
-              vv = { t, -(k+1) };
+            auto& [ v1, v2 ] = edges[{ i, j }]; // edges: triangle edge -> Voronoi edge
+            if (v2 == 0) {
+              v1 = t;
+              v2 = -(k+1);
               // negative second vertex represents the third triangle vertex
               // until the second voronoi vertex is set
             } else {
-              vv[1] = t;
+              v2 = t;
             }
             // TODO: need to check for exact overlap of Voronoi vertices: if (vv[1] > 0) (0 could mean unassigned)
 
@@ -210,10 +212,11 @@ int main(int argc, char** argv)
                 edges2[{ -1, t }] = { v2, int(vertices.size() - 1) };
 
                 remove_edges.push_back(it);
+                // TODO: break after both edges are found
               }
 
-              // TODO: remove v1 here
               remove_vertices.insert(v1);
+              // TODO: assign sentinel values instead?
 
               continue;
             }
