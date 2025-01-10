@@ -88,7 +88,7 @@ int main(int argc, char** argv)
     cout << "{\n\"vertices\":[\n";
     bool first = true;
 
-    for (size_t t = 0; t < triangles.size(); ++t) {
+    for (int t = 0, nt = triangles.size(); t < nt; ++t) {
         auto [ i, j, k ] = triangles[t]; // triangle vertices
         double d = 0, py = 1, cx = 0, cy = 0;
         for (int permutation = 3;;) {
@@ -128,11 +128,11 @@ int main(int argc, char** argv)
         for (int permutation = 3;;) {
             auto& vv = edges[{ i, j }]; // edges: triangle edge -> Voronoi edge
             if (vv[1] == 0) {
-              vv = { int(t), -(k+1) };
+              vv = { t, -(k+1) };
               // negative second vertex represents the third triangle vertex
               // until the second voronoi vertex is set
             } else {
-              vv[1] = int(t);
+              vv[1] = t;
             }
 
             if (!--permutation)
@@ -157,17 +157,20 @@ int main(int argc, char** argv)
             // ax + by + c = 0
             const double a = y1 - y2;
             const double b = x2 - x1;
-            const double c = x1*y2 - y1*x2;
+            const double c = y1*x2 - x1*y2 ;
 
             const point_t t3 = points[-(vv[1]+1)]; // the other vertex of the triangle
 
-            // if the single voronoi vertex is on the oposite side
-            // from the third triangle vertex
-            if ( ( a*v1[0] + b*v1[1] + c < 0 )
-              != ( a*t3[0] + b*t3[1] + c < 0 )
-            ) continue;
-
-            v2 = { (x1 + x2) * 0.5, (y1 + y2) * 0.5 };
+            if ( ( a*v1[0] + b*v1[1] < c )
+              == ( a*t3[0] + b*t3[1] < c )
+            ) {
+              // if the single voronoi vertex is on the same side
+              // from the third triangle vertex,
+              // use the edge center as the missing vertex
+              v2 = { (x1 + x2) * 0.5, (y1 + y2) * 0.5 };
+            } else {
+              continue;
+            }
         } else {
           v2 = vertices[vv[1]];
         }
