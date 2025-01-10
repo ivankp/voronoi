@@ -193,10 +193,6 @@ int main(int argc, char** argv)
 
                 const auto [ vx2, vy2 ] = vertices[v2];
 
-                cerr
-                  << "[" << vx1 << ", " << vy1 << "], "
-                  << "[" << vx2 << ", " << vy2 << "], ";
-
                 const double vdx = vx1 - vx2;
                 const double vdy = vy1 - vy2;
                 const double vxy = vx1 * vy2 - vy1 * vx2;
@@ -213,11 +209,8 @@ int main(int argc, char** argv)
                 vertices.push_back({ x, y });
                 edges2[{ -1, t }] = { v2, int(vertices.size() - 1) };
 
-                cerr << "[" << x << ", " << y << "]\n";
-
                 remove_edges.push_back(it);
               }
-              cerr << '\n';
 
               // TODO: remove v1 here
               remove_vertices.insert(v1);
