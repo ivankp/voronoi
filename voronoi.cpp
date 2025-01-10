@@ -15,26 +15,15 @@ enum {
 } read_section = READ_NULL;
 
 template <typename T>
-struct ordered_pair {
-    T a, b;
-    ordered_pair(T _a, T _b) {
-        if (_a < _b) {
-            a = _a;
-            b = _b;
+struct ordered_pair: std::array<T, 2> {
+    using base_t = std::array<T, 2>;
+    ordered_pair(T a, T b) {
+        if (a < b) {
+            static_cast<base_t&>(*this) = { a, b };
         } else {
-            a = _b;
-            b = _a;
+            static_cast<base_t&>(*this) = { b, a };
         }
     }
-    auto operator<=>(const ordered_pair&) const = default;
-};
-
-struct index {
-  unsigned i = -1;
-  constexpr index() noexcept = default;
-  constexpr index(unsigned i) noexcept: i(i) { }
-  constexpr operator unsigned() const noexcept { return i; }
-  constexpr bool empty() const noexcept { return i == unsigned(-1); }
 };
 
 int main(int argc, char** argv)
@@ -46,7 +35,7 @@ int main(int argc, char** argv)
 
     using point_t = std::array<double, 2>;
     std::vector<point_t> points;
-    std::vector<std::array<unsigned, 3>> triangles;
+    std::vector<std::array<int, 3>> triangles;
 
     {
         std::ifstream file(argv[1]);
@@ -88,8 +77,8 @@ int main(int argc, char** argv)
 
     // Voronoi diagram edges
     std::map<
-      ordered_pair<unsigned>, // triangle edge: indices of triangle vertices
-      std::array<std::array<index, 2>, 2> // voronoi vertices:
+      ordered_pair<int>, // triangle edge: indices of triangle vertices
+      std::array<int, 2> // voronoi vertices:
       // (index of voronoi vertex, corresponding third triangle vertex) × 2
     > edges;
 
@@ -102,7 +91,7 @@ int main(int argc, char** argv)
     for (size_t t = 0; t < triangles.size(); ++t) {
         auto [ i, j, k ] = triangles[t]; // triangle vertices
         double d = 0, py = 1, cx = 0, cy = 0;
-        for (unsigned permutation = 3;;) {
+        for (int permutation = 3;;) {
             const auto [ xi, yi ] = points[i];
             const auto [ xj, yj ] = points[j];
             const auto [ xk, yk ] = points[k];
@@ -136,9 +125,15 @@ int main(int argc, char** argv)
         cout << '[' << cx << ',' << cy << ']';
         vertices[t] = { cx, cy };
 
-        for (unsigned permutation = 3;;) {
+        for (int permutation = 3;;) {
             auto& vv = edges[{ i, j }]; // edges: triangle edge -> Voronoi edge
-            vv[!vv[0][0].empty()] = { t, k };
+            if (vv[1] == 0) {
+              vv = { int(t), -(k+1) };
+              // negative second vertex represents the third triangle vertex
+              // until the second voronoi vertex is set
+            } else {
+              vv[1] = int(t);
+            }
 
             if (!--permutation)
                 break;
@@ -153,18 +148,18 @@ int main(int argc, char** argv)
     cout << "\n],\n\"edges\":[\n";
     first = true;
     for (auto& [ edge, vv ] : edges) {
-        const point_t v1 = vertices[vv[0][0]]; // first Voronoi vertex
+        const point_t v1 = vertices[vv[0]]; // first Voronoi vertex
         point_t v2; // second Voronoi vertex
-        if (vv[1][0].empty()) { // if no Voronoi vertex across the edge, use edge center
-            const auto [ x1, y1 ] = points[edge.a];
-            const auto [ x2, y2 ] = points[edge.b];
+        if (vv[1] < 0) { // if no Voronoi vertex across the edge, use edge center
+            const auto [ x1, y1 ] = points[edge[0]];
+            const auto [ x2, y2 ] = points[edge[1]];
 
             // ax + by + c = 0
             const double a = y1 - y2;
             const double b = x2 - x1;
             const double c = x1*y2 - y1*x2;
 
-            const point_t t3 = points[vv[0][1]]; // the other vertex of the triangle
+            const point_t t3 = points[-(vv[1]+1)]; // the other vertex of the triangle
 
             // if the single voronoi vertex is on the oposite side
             // from the third triangle vertex
@@ -174,7 +169,7 @@ int main(int argc, char** argv)
 
             v2 = { (x1 + x2) * 0.5, (y1 + y2) * 0.5 };
         } else {
-          v2 = vertices[vv[1][0]];
+          v2 = vertices[vv[1]];
         }
 
         if (first) {
